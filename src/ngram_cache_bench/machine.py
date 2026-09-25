@@ -19,9 +19,11 @@ def cpu_name() -> str:
         )
         return result.stdout.strip()
     if system == "Linux":
-        for line in Path("/proc/cpuinfo").read_text().splitlines():
+        cpuinfo = Path("/proc/cpuinfo").read_text()
+        for line in cpuinfo.splitlines():
             if line.startswith("model name"):
-                return line.split(":", 1)[1].strip()
+                model_name = line.split(":", 1)[1]
+                return model_name.strip()
         raise SystemExit("/proc/cpuinfo has no model name")
     raise SystemExit(f"unsupported platform {system}")
 

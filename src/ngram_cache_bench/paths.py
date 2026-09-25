@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 # The package lives at src/ngram_cache_bench, two levels below the repo root.
-ROOT = Path(__file__).resolve().parents[2]
+PACKAGE_FILE = Path(__file__).resolve()
+ROOT = PACKAGE_FILE.parents[2]
 DATA_DIR = ROOT / "data"
 WORK_DIR = ROOT / "work"
 RESULTS_DIR = ROOT / "results"

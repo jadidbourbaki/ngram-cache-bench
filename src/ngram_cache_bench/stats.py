@@ -26,7 +26,10 @@ def run_measured(command: list[str], log_path: Path) -> int:
     """Run a command with its output in a log file and return its peak resident memory in bytes."""
     with open(log_path, "w") as log:
         process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
-        _, wait_status, usage = os.wait4(process.pid, 0)
+        # os.wait4 returns the process id, the wait status, and the resource usage of the child.
+        wait_result = os.wait4(process.pid, 0)
+    wait_status = wait_result[1]
+    usage = wait_result[2]
     exit_code = os.waitstatus_to_exitcode(wait_status)
     process.returncode = exit_code
     if exit_code != 0:

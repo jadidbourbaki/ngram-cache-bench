@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import matplotlib
 import polars as pl
 from matplotlib.figure import Figure
 
@@ -26,8 +27,12 @@ BYTES_PER_MB = 1_000_000
 LABELS = {"none": "none", **CORPUS_LABELS}
 # Figures place corpora on an axis of megabytes, where 0 is a run without a static cache.
 AXIS_LABELS = {"none": "0", "25mb": "25", "50mb": "50", "100mb": "100", "200mb": "200", "full": "541"}
-X_AXIS_TITLE = "WikiText-103 training text in the static cache (MB)"
+# The size of the WikiText-103 training text each static cache was built from.
+X_AXIS_TITLE = "Corpus Size (MB)"
 METRICS = ["draft_us_per_token", "load_ms", "accept_pct", "cache_memory_mb"]
+
+# A fixed salt gives the SVG elements the same ids on every run, so an unchanged figure has an unchanged file.
+matplotlib.rcParams["svg.hashsalt"] = "42"
 # Colors follow the variant in the order of variants.tsv, from a palette checked for color vision deficiency.
 SERIES_COLORS = ["#eb6834", "#2a78d6", "#1baf7a", "#eda100"]
 SURFACE_COLOR = "#ffffff"
@@ -42,7 +47,8 @@ def per_run_metrics(stats: pl.DataFrame) -> pl.DataFrame:
     # Memory of the static cache is the peak resident memory above the median run of the same variant without one.
     runs_without_cache = stats.filter(pl.col("corpus") == "none")
     peak_without_cache = pl.col("peak_rss_bytes").median().alias("peak_rss_without_cache")
-    without_cache = runs_without_cache.group_by("variant").agg(peak_without_cache)
+    runs_by_variant = runs_without_cache.group_by("variant")
+    without_cache = runs_by_variant.agg(peak_without_cache)
     joined = stats.join(without_cache, on="variant")
     cache_memory_mb = (pl.col("peak_rss_bytes") - pl.col("peak_rss_without_cache")) / BYTES_PER_MB
     return joined.with_columns(
@@ -59,7 +65,8 @@ def aggregate(runs: pl.DataFrame, statistic: str) -> pl.DataFrame:
         "min": metric_columns.min(),
         "max": metric_columns.max(),
     }
-    return runs.group_by("variant", "corpus").agg(expressions[statistic])
+    runs_by_configuration = runs.group_by("variant", "corpus")
+    return runs_by_configuration.agg(expressions[statistic])
 
 
 def metric_table(
@@ -89,7 +96,9 @@ def grouped_bars(
     axes = figure.add_subplot()
     axes.set_facecolor(SURFACE_COLOR)
     bar_width = 0.8 / len(variant_names)
-    tallest = max(tables["max"].select(variant_names).max().row(0))
+    slowest_runs = tables["max"].select(variant_names)
+    column_maximums = slowest_runs.max()
+    tallest = max(column_maximums.row(0))
     for index, name in enumerate(variant_names):
         medians = tables["median"][name].to_list()
         minimums = tables["min"][name].to_list()
@@ -119,7 +128,7 @@ def grouped_bars(
     axes.tick_params(length=0, colors=MUTED_COLOR)
     axes.legend(frameon=False, loc="upper left")
     figure.tight_layout()
-    figure.savefig(path, facecolor=SURFACE_COLOR)
+    figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
     # GitHub renders PNG images in pull request descriptions, so every figure also gets a PNG copy.
     figure.savefig(path.with_suffix(".png"), facecolor=SURFACE_COLOR, dpi=200)
 
@@ -174,7 +183,7 @@ def run() -> None:
         "draft_us_per_token",
         all_corpora,
         variant_names,
-        "drafting time per drafted token (µs)",
+        "Latency (µs / token)",
     )
     grouped_bars(
         FIGURES_DIR / "load.svg",
@@ -182,7 +191,7 @@ def run() -> None:
         "load_ms",
         CORPUS_NAMES,
         variant_names,
-        "static cache load time (ms)",
+        "Static Cache Load Time (ms)",
     )
     grouped_bars(
         FIGURES_DIR / "memory.svg",
@@ -190,7 +199,7 @@ def run() -> None:
         "cache_memory_mb",
         CORPUS_NAMES,
         variant_names,
-        "static cache memory (MB)",
+        "Static Cache Memory (MB)",
     )
 
     caches = pl.DataFrame([row.model_dump() for row in create_rows])
@@ -202,8 +211,9 @@ def run() -> None:
     )
     memory_gib = machine.memory_bytes / 2**30
     machine_line = f"{machine.cpu}, {machine.cores} cores, {memory_gib:.0f} GiB, {machine.os}"
+    run_count = stats["run"].n_unique()
     sections = [
-        f"Machine: {machine_line}. Every value is the median of 3 runs of `llama-lookup-stats`.\n",
+        f"Machine: {machine_line}. Every value is the median of {run_count} runs of `llama-lookup-stats`.\n",
         markdown("Drafting time per drafted token (µs)", drafting, 2),
         markdown("Static cache load time (ms)", load, 0),
         markdown("Static cache memory (MB)", memory, 0),

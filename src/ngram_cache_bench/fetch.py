@@ -42,7 +42,8 @@ def write_raw_text(parquet_paths: list[Path], out_path: Path) -> None:
     with open(out_path, "w", encoding="utf-8") as out:
         for parquet_path in parquet_paths:
             table = pq.read_table(parquet_path, columns=["text"])
-            lines = table.column("text").to_pylist()
+            text_column = table.column("text")
+            lines = text_column.to_pylist()
             restored_lines = [line if line else " \n" for line in lines]
             out.writelines(restored_lines)
     print(f"{out_path.relative_to(ROOT)}: {out_path.stat().st_size} bytes", flush=True)

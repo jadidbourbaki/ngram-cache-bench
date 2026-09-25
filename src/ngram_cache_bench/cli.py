@@ -18,8 +18,9 @@ STEPS = {
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ngram-cache-bench", description=__doc__)
     subparsers = parser.add_subparsers(dest="step", required=True)
-    for step, (help_text, _) in STEPS.items():
+    for step, description_and_function in STEPS.items():
+        help_text = description_and_function[0]
         subparsers.add_parser(step, help=help_text)
     arguments = parser.parse_args()
-    _, step_function = STEPS[arguments.step]
+    step_function = STEPS[arguments.step][1]
     step_function()
