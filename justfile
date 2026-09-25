@@ -1,26 +1,29 @@
-# Download WikiText-103 and the tokenizer model
+# Download WikiText-103 and the tokenizer model at pinned revisions
 fetch:
-    uv run scripts/fetch_data.py
+    uv run ngram-cache-bench fetch
 
 # Cut WikiText-103 train into the corpora that the static caches are built from
 corpora:
-    uv run scripts/make_corpora.py
+    uv run ngram-cache-bench corpora
 
 # Check out and build every llama.cpp variant in variants.tsv
 build:
-    ./scripts/build_variants.sh
+    uv run ngram-cache-bench build
 
 # Build every static cache and run llama-lookup-stats with every variant
 stats:
-    ./scripts/run_lookup_stats.sh
+    uv run ngram-cache-bench stats
 
-# Format the Python scripts
+# Draw the figures and write the tables of results/
+plot:
+    uv run ngram-cache-bench plot
+
+# Format the code
 fmt:
-    uv run ruff format scripts
+    uv run ruff format src
 
-# Lint and type check the scripts, the way the quality gate runs them
+# Lint and type check the code, the way the quality gate runs them
 check:
-    uv run ruff format --check scripts
-    uv run ruff check scripts
-    uv run ty check scripts
-    shellcheck scripts/*.sh
+    uv run ruff format --check src
+    uv run ruff check src
+    uv run ty check src

@@ -2,11 +2,18 @@
 name = "ngram-cache-bench"
 version = "0.1.0"
 description = "Benchmarks of the n-gram caches in llama.cpp"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "huggingface-hub==2.0.0",
     "matplotlib==3.11.2",
+    "polars==1.44.2",
     "pyarrow==25.0.1",
+    "pydantic==2.13.5",
 ]
+
+[project.scripts]
+ngram-cache-bench = "ngram_cache_bench.cli:main"
 
 [dependency-groups]
 dev = [
@@ -14,8 +21,9 @@ dev = [
     "ty==0.0.84",
 ]
 
-[tool.uv]
-package = false
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13"]
+build-backend = "uv_build"
 
 [tool.ruff]
 line-length = 110

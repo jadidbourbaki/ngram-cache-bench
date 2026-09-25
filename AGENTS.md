@@ -9,7 +9,7 @@ session.
 ngram-cache-bench measures the n-gram caches that llama.cpp uses for
 lookup decoding. The repo pins every input a result depends on: the
 llama.cpp variants, the corpus, and the tokenizer model. Anyone who
-clones the repo and runs the scripts in order gets the same numbers on
+clones the repo and runs the steps in order gets the same numbers on
 the same hardware.
 
 The llama.cpp variants live on the fork at
@@ -27,8 +27,8 @@ the test split.
 ```
 variants.tsv        llama.cpp variants: name, fork commit, cache file format
 llama.cpp/          submodule of the fork, checked out at the upstream base commit
-scripts/            fetch, build, corpus, and benchmark scripts
-results/            CSV results that the scripts write, committed
+src/ngram_cache_bench/  the ngram-cache-bench command, one module per step
+results/            CSV results, tables, and figures that the steps write, committed
 docs/runs.md        one row per benchmark run
 data/               downloads and derived corpora, ignored by git
 work/               per-variant worktrees, builds, caches, and logs, ignored by git
@@ -49,35 +49,34 @@ the dependency would weigh far more than the problem it solves.
 
 In this repo that means: `llama-lookup-create` to build every static
 cache and `llama-lookup-stats` for every measurement of drafting, each
-from the variant under test. Before writing code for a new direction,
+from the variant under test, `huggingface_hub` for every download, and
+polars for every aggregation and table. Before writing code for a new direction,
 search for prior papers, existing benchmarks, and library support, and
 present the choice with sources.
 
 ## Quality gate
 
 `just check` runs `ruff format --check`, `ruff check`, and `ty check` on
-the Python scripts, and `shellcheck` on the shell scripts. Work is
-complete when `just check` passes locally.
+`src/`. Work is complete when `just check` passes locally.
 
 ## Reproducibility
 
 Every result in `results/` must be reproducible from a fresh clone.
 
 - Pin every input. A llama.cpp variant is a full commit SHA in
-  `variants.tsv`. A download is a Hugging Face revision plus the SHA-256
-  of the file, and the fetch script refuses a file whose hash does not
-  match. A Python dependency is an exact version in `pyproject.toml`
-  with `uv.lock` committed.
+  `variants.tsv`. A download is a commit of its Hugging Face repo, which
+  fixes the bytes of every file. A Python dependency is an exact version
+  in `pyproject.toml` with `uv.lock` committed.
 - Read inputs only from the repo, `data/`, and `work/`. A path into a
   home directory, a Hugging Face cache, or a sibling checkout produces a
   result nobody else can reproduce.
 - Scripts take no environment variables that change what they measure.
-  A setting that changes a result is a constant in the script or a
+  A setting that changes a result is a constant in its module or a
   column in `variants.tsv`.
-- Files under `results/` come from the scripts. To change a number,
-  change the script and rerun it.
+- Files under `results/` come from the steps. To change a number,
+  change the step and rerun it.
 - Push a variant's commit to the fork before pinning it. The build
-  script fetches each variant by SHA, so an unpushed commit fails on
+  step fetches each variant by SHA, so an unpushed commit fails on
   every clone but the one it was made in.
 
 ## Experiment hygiene
@@ -89,7 +88,7 @@ Every result in `results/` must be reproducible from a fresh clone.
   machine, what changed, and the headline numbers.
 - Run each timed configuration several times and report a fixed
   statistic. `llama-lookup-stats` runs report the median of 3 runs. Name
-  the statistic next to every number a script prints.
+  the statistic next to every number a step prints.
 - Check correctness in the same run as speed. The acceptance rate of
   `llama-lookup-stats` must match across variants that share drafting
   logic. A variant that changes how ties between equally frequent tokens
@@ -167,10 +166,10 @@ These rules apply to every language in the repo.
   single letter is acceptable only as a comprehension or loop index.
 - Name intermediate results. Do not chain calls.
 - Fail hard. No `try/except: pass`. No silent fallbacks. A missing
-  input, a hash mismatch, or a tool that exits nonzero stops the script
+  input or a tool that exits nonzero stops the step
   with a message that names the offending value.
-- Match the scope of a change to the request. A benchmark script does
-  not need a helper module.
+- Match the scope of a change to the request. A step does not need a
+  helper module.
 
 ### Python
 
@@ -196,15 +195,11 @@ These rules apply to every language in the repo.
   `except:` is never correct. Use `raise ... from err` to preserve the
   cause.
 
-### C++
-
-`bench/` links against llama.cpp, so it follows llama.cpp's style:
-4-space indentation, `snake_case` names, `const` wherever a value does
-not change, and a hard failure with a message on bad input.
-
-### Shell
-
-POSIX `sh` with `set -eu`. Quote every expansion. `shellcheck` must pass.
+- The repo is one package under `src/` built with `uv_build`. Every step
+  is a module with a `run()` function and a subcommand of the
+  `ngram-cache-bench` entry point in `[project.scripts]`.
+- Call external programs such as git, CMake, and the llama.cpp tools
+  with `subprocess` and `check=True`.
 
 ## Writing tests
 
@@ -216,7 +211,7 @@ by a stronger test.
 The results of this repo rest on a few properties, and each one fails
 loudly when it breaks.
 
-- Every download matches its pinned SHA-256.
+- Every download comes from its pinned Hugging Face revision.
 - Each corpus is a prefix of the next one and ends at a line boundary.
 - Variants that share drafting logic report the same acceptance rate on
   the same cache.
