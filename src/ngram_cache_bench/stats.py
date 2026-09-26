@@ -18,7 +18,8 @@ from ngram_cache_bench.variants import load_variants
 CACHE_DIR = WORK_DIR / "caches"
 LOG_DIR = WORK_DIR / "logs"
 REPEATS = 3
-CONTEXT_SIZE = 2048
+# The pull request that added the static cache evaluated llama-lookup-stats with a context of 4096 tokens.
+CONTEXT_SIZE = 4096
 DRAFT_MAX = 8
 
 

@@ -38,7 +38,7 @@ just fetch corpora build stats plot
 
 | flag | value | meaning |
 |---|---|---|
-| `-c` | 2048 | tokens replayed as one generation |
+| `-c` | 4096 | tokens replayed as one generation |
 | `--spec-draft-n-max` | 8 | most tokens drafted per step |
 | `-ngl` | 0 | run on the CPU |
 
