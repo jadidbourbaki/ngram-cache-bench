@@ -34,8 +34,11 @@ METRICS = ["draft_us_per_token", "load_ms", "accept_pct", "cache_memory_mb"]
 
 # A fixed salt gives the SVG elements the same ids on every run, so an unchanged figure has an unchanged file.
 matplotlib.rcParams["svg.hashsalt"] = "42"
-# Colors follow the variant in the order of variants.tsv, from a palette checked for color vision deficiency.
-SERIES_COLORS = ["#eb6834", "#2a78d6", "#1baf7a", "#eda100"]
+# Marker shapes follow the variant in the order of variants.tsv: a dot for the first, a square for the second.
+MARKERS = ["o", "s", "^", "D"]
+MARKER_COLOR = "#000000"
+# Every error bar is ANSI blue, so the black markers stay distinct from the ranges around them.
+ERROR_BAR_COLOR = "#0000ff"
 SURFACE_COLOR = "#ffffff"
 TEXT_COLOR = "#1a1a1a"
 MUTED_COLOR = "#666666"
@@ -119,11 +122,11 @@ def grouped_points(
             offsets,
             medians,
             yerr=[below, above],
-            fmt="o",
-            markersize=6,
-            color=SERIES_COLORS[index],
-            ecolor=SERIES_COLORS[index],
-            elinewidth=1.5,
+            fmt=MARKERS[index],
+            markersize=4,
+            color=MARKER_COLOR,
+            ecolor=ERROR_BAR_COLOR,
+            elinewidth=1,
             capsize=3,
             label=name,
             zorder=3,
