@@ -71,7 +71,8 @@ matplotlib.rcParams.update(
 # a blog column and 11 point text is 15 px.
 FIGURE_SIZE_INCHES = (3.0, 2.4)
 # The summary figure is 2 inches wide for every inch of height, the shape X shows in full in a link preview.
-SUMMARY_FIGURE_SIZE_INCHES = (6.0, 3.0)
+# At 4.5 inches it displays at 432 px, and its PNG at 300 dpi is 1350 px wide.
+SUMMARY_FIGURE_SIZE_INCHES = (4.5, 2.25)
 PNG_DPI = 300
 # Bars follow the variant in the order of variants.tsv: an open black bar for the earlier variant and a filled
 # black bar for the later one.
