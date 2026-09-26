@@ -7,6 +7,7 @@
 | 2026-09-25 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | flatmap | flat `unordered_dense` maps with a sorted vector of following tokens, measured alone with the recorded baseline and nocopy runs | flatmap drafts 2.56x faster than nocopy without a static cache and 0.98x to 1.12x as fast with one. flatmap loads the static cache 1.18x to 1.97x faster and holds it in 1.98x to 2.45x less memory. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | outermap | outermap replaces flatmap and changes only the outer map | outermap drafts 1.04x to 1.16x faster than nocopy and loads the static cache 1.41x to 1.68x faster. outermap holds the 541 MB cache in 1.16x more memory. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | constmap | a verified constmap backs the static cache, with a new static cache file format | constmap loads the static cache 9.81x to 14.87x faster than outermap and holds it in 5.15x to 6.76x less memory. constmap drafts 0.84x to 0.87x as fast with a static cache and at the same speed without one. |
+| 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | outermap, constmap | outermap stores the ngram caches in an `unordered_dense` segmented map, and constmap is rebased onto the new outermap | outermap loads the static cache 1.41x to 1.65x faster than nocopy, holds it in 1.07x to 1.11x less memory, and drafts 1.02x to 1.13x faster. constmap loads the static cache 8.18x to 15.07x faster than outermap, holds it in 4.31x to 5.29x less memory, and drafts 0.81x to 0.87x as fast with a static cache. |
 
 The change of context size invalidates the first run, and `results/` holds
 the second run.
@@ -49,3 +50,15 @@ every configuration. constmap stores the following tokens of each 2-gram
 sorted by token, so constmap breaks ties differently from outermap and
 accepts up to 0.06 percentage points more of the drafted tokens. Every
 configuration drafted the same number of tokens in all 3 runs.
+
+The sixth run replaces the fourth and fifth runs of outermap and constmap.
+The `unordered_dense` map of the fourth run keeps its entries in one vector
+that doubles as it fills. The 541 MB cache has 8,879,640 2-grams, so the
+last doubling at 8,388,608 entries holds the old and the new vector at
+once. The segmented map grows in blocks of 4096 bytes and removes that
+peak. A single run with the 541 MB cache peaked at 3.35 GB with the
+segmented map, 3.25 GB with an exact `reserve` from a first pass over the
+file, and 4.01 GB with the plain map. The first pass added 0.4 s to the
+load. We rebuilt the constmap static caches with the rebased
+`llama-lookup-create`. Every configuration drafted the same number of
+tokens in all 3 runs.

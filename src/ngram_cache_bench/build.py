@@ -27,11 +27,17 @@ def run() -> None:
     for variant in load_variants():
         variant_source = source_dir(variant.name)
         variant_build = build_dir(variant.name)
-        if not variant_source.exists():
+        subprocess.run(
+            ["git", "-C", str(SUBMODULE_DIR), "fetch", "--depth", "1", "origin", variant.commit],
+            check=True,
+        )
+        # A variant pinned to a new commit reuses its worktree, so the worktree checks out the pinned commit.
+        if variant_source.exists():
             subprocess.run(
-                ["git", "-C", str(SUBMODULE_DIR), "fetch", "--depth", "1", "origin", variant.commit],
+                ["git", "-C", str(variant_source), "checkout", "--detach", variant.commit],
                 check=True,
             )
+        else:
             subprocess.run(
                 [
                     "git",
