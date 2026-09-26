@@ -45,17 +45,17 @@ matplotlib.rcParams.update(
         # SVG figures keep their text as text, so a browser draws it with a hinted serif as sharp as the page text.
         "svg.fonttype": "none",
         "font.size": 11,
-        "axes.labelsize": 12,
+        "axes.labelsize": 11,
         "axes.linewidth": 1.0,
         "xtick.direction": "in",
         "ytick.direction": "in",
         "xtick.top": False,
         "ytick.right": True,
-        "xtick.major.size": 4,
-        "ytick.major.size": 4,
+        "xtick.major.size": 3,
+        "ytick.major.size": 3,
         "xtick.major.width": 1.0,
         "ytick.major.width": 1.0,
-        "legend.fontsize": 11,
+        "legend.fontsize": 10,
         "legend.handlelength": 1.2,
         "legend.borderpad": 0.4,
         "patch.linewidth": 0.8,
@@ -65,9 +65,9 @@ matplotlib.rcParams.update(
         "legend.framealpha": 1,
     }
 )
-# A figure 4.5 inches wide displays at 432 px in a browser without scaling, where 11 point text is 15 px. Scaled
-# to the 3.33 inch column of a two-column USENIX paper, the same text becomes 8.1 point.
-FIGURE_SIZE_INCHES = (4.5, 3.0)
+# A figure 3 inches wide displays at 288 px in a browser without scaling, so three figures fit side by side in
+# a blog column and 11 point text is 15 px.
+FIGURE_SIZE_INCHES = (3.0, 2.4)
 PNG_DPI = 300
 # Bars follow the variant in the order of variants.tsv: an open black bar for the earlier variant and a filled
 # black bar for the later one.
@@ -188,7 +188,10 @@ def grouped_bars(
     axes.tick_params(axis="x", which="both", bottom=False, top=False)
     # The bars grow with the corpus, so the upper left corner stays clear of the tallest bars on the right.
     axes.legend(loc="upper left")
-    figure.tight_layout(pad=0.3)
+    # matplotlib measures the text with STIX, but a browser draws the SVG text in its own serif, which can run a
+    # few pixels past the STIX edges. A padding of 0.8 of the font size, 9 pt at 11 pt text, keeps that text inside
+    # the figure.
+    figure.tight_layout(pad=0.8)
     figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
     # GitHub renders PNG images in pull request descriptions, so every figure also gets a PNG copy.
     png_path = path.with_suffix(".png")
