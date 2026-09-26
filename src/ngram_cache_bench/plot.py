@@ -35,48 +35,55 @@ METRICS = ["draft_us_per_token", "load_ms", "accept_pct", "cache_memory_mb"]
 
 # A fixed salt gives the SVG elements the same ids on every run, so an unchanged figure has an unchanged file.
 matplotlib.rcParams["svg.hashsalt"] = "42"
-# Figures follow the look of a USENIX systems paper: the Times-like STIX serif that ships with matplotlib at
-# 9 point, a closed frame, and inward ticks on all four sides.
+# Figures follow the look of a USENIX systems paper: the Times-like STIX serif that ships with matplotlib, a
+# closed frame, and inward ticks. The numeric y axis repeats its ticks on the right, where a reader of the 541 MB
+# points reads their values. The categorical x axis has ticks at the bottom only.
 matplotlib.rcParams.update(
     {
-        "font.family": "STIXGeneral",
+        "font.family": "serif",
+        "font.serif": ["STIXGeneral"],
         "mathtext.fontset": "stix",
-        "font.size": 9,
-        "axes.linewidth": 0.8,
+        # SVG figures keep their text as text, so a browser draws it with a hinted serif as sharp as the page text.
+        "svg.fonttype": "none",
+        "font.size": 11,
+        "axes.labelsize": 12,
+        "axes.linewidth": 1.0,
         "xtick.direction": "in",
         "ytick.direction": "in",
-        "xtick.top": True,
+        "xtick.top": False,
         "ytick.right": True,
-        "xtick.major.size": 3.5,
-        "ytick.major.size": 3.5,
-        "ytick.minor.size": 2,
-        "xtick.major.width": 0.8,
-        "ytick.major.width": 0.8,
-        "ytick.minor.width": 0.6,
-        "legend.fontsize": 8,
+        "xtick.major.size": 4,
+        "ytick.major.size": 4,
+        "ytick.minor.size": 2.5,
+        "xtick.major.width": 1.0,
+        "ytick.major.width": 1.0,
+        "ytick.minor.width": 0.8,
+        "legend.fontsize": 11,
         "legend.handlelength": 1.2,
         "legend.borderpad": 0.4,
-        "patch.linewidth": 0.6,
+        "patch.linewidth": 0.8,
         "legend.frameon": True,
         "legend.fancybox": False,
         "legend.edgecolor": "black",
         "legend.framealpha": 1,
     }
 )
-# A single column of a two-column USENIX paper is 3.33 inches wide.
-FIGURE_SIZE_INCHES = (3.4, 2.3)
+# A figure 4.5 inches wide displays at 432 px in a browser without scaling, where 11 point text is 15 px. Scaled
+# to the 3.33 inch column of a two-column USENIX paper, the same text becomes 8.1 point.
+FIGURE_SIZE_INCHES = (4.5, 3.0)
 PNG_DPI = 300
 # Markers follow the variant in the order of variants.tsv: an open black circle for the first and a filled black
 # circle for the second.
 MARKERS = ["o", "o", "s", "^"]
 MARKER_COLOR = "#000000"
 MARKER_FACE_COLORS = ["none", "#000000", "#000000", "#000000"]
-MARKER_SIZE = 4
+MARKER_SIZE = 5.5
 # Every error bar is ANSI red, so the ranges stand out against both markers.
 ERROR_BAR_COLOR = "#ff0000"
 SURFACE_COLOR = "#ffffff"
 TEXT_COLOR = "#000000"
-GRID_COLOR = "#b0b0b0"
+# A solid light grid stays sharp on a screen, where a thin dotted line breaks into uneven pixels.
+GRID_COLOR = "#d9d9d9"
 
 
 def per_run_metrics(stats: pl.DataFrame) -> pl.DataFrame:
@@ -134,8 +141,8 @@ def grouped_points(
     figure = Figure(figsize=FIGURE_SIZE_INCHES, facecolor=SURFACE_COLOR)
     axes = figure.add_subplot()
     axes.set_facecolor(SURFACE_COLOR)
-    # The points of all variants share 0.4 of the space around each corpus tick, so two variants sit 0.2 apart.
-    slot_width = 0.4 / len(variant_names)
+    # Every variant sits on its corpus tick, so the points of one corpus share one vertical line.
+    positions = list(range(len(corpora)))
     fastest_runs = tables["min"].select(variant_names)
     slowest_runs = tables["max"].select(variant_names)
     column_minimums = fastest_runs.min()
@@ -151,9 +158,8 @@ def grouped_points(
         maximums = maximum_column.to_list()
         below = [median - minimum for median, minimum in zip(medians, minimums, strict=True)]
         above = [maximum - median for median, maximum in zip(medians, maximums, strict=True)]
-        offsets = [position - 0.2 + slot_width * (index + 0.5) for position in range(len(corpora))]
         container = axes.errorbar(
-            offsets,
+            positions,
             medians,
             yerr=[below, above],
             marker=MARKERS[index],
@@ -161,11 +167,11 @@ def grouped_points(
             markersize=MARKER_SIZE,
             color=MARKER_COLOR,
             markerfacecolor=MARKER_FACE_COLORS[index],
-            markeredgewidth=0.8,
+            markeredgewidth=1.0,
             ecolor=ERROR_BAR_COLOR,
-            elinewidth=1,
-            capsize=4,
-            capthick=1,
+            elinewidth=1.2,
+            capsize=5,
+            capthick=1.2,
             label=name,
             zorder=3,
         )
@@ -175,7 +181,7 @@ def grouped_points(
         barlines = container.lines[2]
         for artist in [*caplines, *barlines]:
             artist.set_zorder(4)
-    axes.set_xticks(list(range(len(corpora))))
+    axes.set_xticks(positions)
     axes.set_xticklabels([AXIS_LABELS[corpus] for corpus in corpora])
     axes.set_xlabel(X_AXIS_TITLE, color=TEXT_COLOR)
     axes.set_ylabel(ylabel, color=TEXT_COLOR)
@@ -197,7 +203,7 @@ def grouped_points(
         axes.yaxis.set_minor_formatter(NullFormatter())
     else:
         axes.set_ylim(0, highest * 1.1)
-    axes.grid(axis="y", which="major", color=GRID_COLOR, linestyle=":", linewidth=0.5, zorder=0)
+    axes.grid(axis="y", which="major", color=GRID_COLOR, linestyle="-", linewidth=0.8, zorder=0)
     # The corpora are categories, so only the log axis carries minor ticks.
     axes.tick_params(axis="x", which="minor", bottom=False, top=False)
     axes.legend(loc="upper left")
