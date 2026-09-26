@@ -48,7 +48,7 @@ ones.
 | `-ngl` | 0 | run on the CPU |
 
 The tables report the median of the 3 runs. The figures draw the median
-as a point and the fastest to the slowest run as an error bar. The corpora
+as a bar and the fastest to the slowest run as an error bar. The corpora
 are prefixes of the train text, so each corpus contains every smaller one.
 The memory of a static cache
 is the peak resident memory of a run with the cache minus the peak of the

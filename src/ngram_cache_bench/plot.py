@@ -8,7 +8,6 @@ from pathlib import Path
 import matplotlib
 import polars as pl
 from matplotlib.figure import Figure
-from matplotlib.ticker import LogFormatterSciNotation, LogLocator, NullFormatter
 
 from ngram_cache_bench.corpora import CORPUS_LABELS, CORPUS_NAMES
 from ngram_cache_bench.paths import RESULTS_DIR, ROOT
@@ -37,7 +36,7 @@ METRICS = ["draft_us_per_token", "load_ms", "accept_pct", "cache_memory_mb"]
 matplotlib.rcParams["svg.hashsalt"] = "42"
 # Figures follow the look of a USENIX systems paper: the Times-like STIX serif that ships with matplotlib, a
 # closed frame, and inward ticks. The numeric y axis repeats its ticks on the right, where a reader of the 541 MB
-# points reads their values. The categorical x axis has ticks at the bottom only.
+# bars reads their values. The categorical x axis has no ticks.
 matplotlib.rcParams.update(
     {
         "font.family": "serif",
@@ -54,10 +53,8 @@ matplotlib.rcParams.update(
         "ytick.right": True,
         "xtick.major.size": 4,
         "ytick.major.size": 4,
-        "ytick.minor.size": 2.5,
         "xtick.major.width": 1.0,
         "ytick.major.width": 1.0,
-        "ytick.minor.width": 0.8,
         "legend.fontsize": 11,
         "legend.handlelength": 1.2,
         "legend.borderpad": 0.4,
@@ -72,13 +69,13 @@ matplotlib.rcParams.update(
 # to the 3.33 inch column of a two-column USENIX paper, the same text becomes 8.1 point.
 FIGURE_SIZE_INCHES = (4.5, 3.0)
 PNG_DPI = 300
-# Markers follow the variant in the order of variants.tsv: an open black circle for the first and a filled black
-# circle for the second.
-MARKERS = ["o", "o", "s", "^"]
-MARKER_COLOR = "#000000"
-MARKER_FACE_COLORS = ["none", "#000000", "#000000", "#000000"]
-MARKER_SIZE = 5.5
-# Every error bar is ANSI red, so the ranges stand out against both markers.
+# Bars follow the variant in the order of variants.tsv: an open black bar for the earlier variant and a filled
+# black bar for the later one.
+BAR_EDGE_COLOR = "#000000"
+BAR_FACE_COLORS = ["#ffffff", "#000000"]
+# The two bars of a corpus together fill 0.76 of the space between two corpus ticks.
+BAR_WIDTH = 0.38
+# Every error bar is ANSI red, so the ranges stand out against both open and filled bars.
 ERROR_BAR_COLOR = "#ff0000"
 SURFACE_COLOR = "#ffffff"
 TEXT_COLOR = "#000000"
@@ -130,85 +127,67 @@ def metric_table(
     return labeled.select("corpus", *variant_names, *ratios)
 
 
-def grouped_points(
+def grouped_bars(
     path: Path,
     statistics: dict[str, pl.DataFrame],
     metric: str,
     corpora: list[str],
     variant_names: list[str],
     ylabel: str,
-    log_scale: bool,
+    unit_divisor: float,
 ) -> None:
-    """Draw the median of each variant as a point and the fastest to slowest run as a vertical line."""
+    """Draw the median of each variant as a bar and the fastest to slowest run as an error bar."""
     tables = {name: metric_table(table, metric, corpora, variant_names) for name, table in statistics.items()}
     figure = Figure(figsize=FIGURE_SIZE_INCHES, facecolor=SURFACE_COLOR)
     axes = figure.add_subplot()
     axes.set_facecolor(SURFACE_COLOR)
-    # Every variant sits on its corpus tick, so the points of one corpus share one vertical line.
     positions = list(range(len(corpora)))
-    fastest_runs = tables["min"].select(variant_names)
-    slowest_runs = tables["max"].select(variant_names)
-    column_minimums = fastest_runs.min()
-    column_maximums = slowest_runs.max()
-    lowest = min(column_minimums.row(0))
-    highest = max(column_maximums.row(0))
     for index, name in enumerate(variant_names):
-        median_column = tables["median"][name]
-        minimum_column = tables["min"][name]
-        maximum_column = tables["max"][name]
+        # The bars of a corpus sit side by side around its tick, so the first bar spans 0.38 left of the tick and
+        # the second 0.38 right of it.
+        offset = (index - 0.5) * BAR_WIDTH
+        bar_positions = [position + offset for position in positions]
+        # A unit divisor of 1000 draws 2652 MB as 2.652 GB.
+        median_column = tables["median"][name] / unit_divisor
+        minimum_column = tables["min"][name] / unit_divisor
+        maximum_column = tables["max"][name] / unit_divisor
         medians = median_column.to_list()
         minimums = minimum_column.to_list()
         maximums = maximum_column.to_list()
         below = [median - minimum for median, minimum in zip(medians, minimums, strict=True)]
         above = [maximum - median for median, maximum in zip(medians, maximums, strict=True)]
-        container = axes.errorbar(
-            positions,
+        axes.bar(
+            bar_positions,
+            medians,
+            BAR_WIDTH,
+            color=BAR_FACE_COLORS[index],
+            edgecolor=BAR_EDGE_COLOR,
+            linewidth=1.0,
+            label=name,
+            zorder=2,
+        )
+        axes.errorbar(
+            bar_positions,
             medians,
             yerr=[below, above],
-            marker=MARKERS[index],
             linestyle="none",
-            markersize=MARKER_SIZE,
-            color=MARKER_COLOR,
-            markerfacecolor=MARKER_FACE_COLORS[index],
-            markeredgewidth=1.0,
             ecolor=ERROR_BAR_COLOR,
             elinewidth=1.2,
-            capsize=5,
+            capsize=3,
             capthick=1.2,
-            label=name,
             zorder=3,
         )
-        # errorbar draws the markers over the ranges, so we lift the ranges above the markers. A range smaller
-        # than its marker, such as 3.95 to 4.13 µs, then shows as a red line across the marker.
-        caplines = container.lines[1]
-        barlines = container.lines[2]
-        for artist in [*caplines, *barlines]:
-            artist.set_zorder(4)
     axes.set_xticks(positions)
     axes.set_xticklabels([AXIS_LABELS[corpus] for corpus in corpora])
     axes.set_xlabel(X_AXIS_TITLE, color=TEXT_COLOR)
     axes.set_ylabel(ylabel, color=TEXT_COLOR)
-    if log_scale:
-        # A log axis keeps a 2 µs point and a 165 µs point readable on one figure.
-        axes.set_yscale("log")
-        # The axis leaves a factor of 2 below the fastest run and above the slowest run, so runs of 1.78 and
-        # 310 µs give 0.89 to 620 µs, and runs of 0.72 and 6.1 µs give 0.36 to 12 µs.
-        axes.set_ylim(lowest / 2, highest * 2)
-        # Major ticks sit at powers of ten and read 10^0, 10^1, and 10^2, so the labels show that the axis is
-        # logarithmic. Minor ticks mark 2 to 9 times each power of ten without labels.
-        decade_locator = LogLocator(base=10)
-        in_between_locator = LogLocator(base=10, subs=(2, 3, 4, 5, 6, 7, 8, 9))
-        axes.yaxis.set_major_locator(decade_locator)
-        axes.yaxis.set_minor_locator(in_between_locator)
-        axes.yaxis.set_major_formatter(LogFormatterSciNotation(base=10))
-        axes.yaxis.set_minor_formatter(NullFormatter())
-    else:
-        axes.set_ylim(0, highest * 1.1)
+    # Bars start at 0 on a linear axis, so a bar half as tall shows half the time or memory.
+    axes.set_ylim(bottom=0)
     axes.grid(axis="y", which="major", color=GRID_COLOR, linestyle="-", linewidth=0.8, zorder=0)
-    # The corpora are categories, so only the log axis carries minor ticks.
-    axes.tick_params(axis="x", which="minor", bottom=False, top=False)
-    # matplotlib places the legend where it covers the fewest points, since a fixed corner can hide data.
-    axes.legend(loc="best")
+    # The corpora are categories, and the bars already mark where each corpus sits.
+    axes.tick_params(axis="x", which="both", bottom=False, top=False)
+    # The bars grow with the corpus, so the upper left corner stays clear of the tallest bars on the right.
+    axes.legend(loc="upper left")
     figure.tight_layout(pad=0.3)
     figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
     # GitHub renders PNG images in pull request descriptions, so every figure also gets a PNG copy.
@@ -265,32 +244,32 @@ def run() -> None:
         pair = [previous, current]
         pair_dir = FIGURES_DIR / current
         pair_dir.mkdir(parents=True, exist_ok=True)
-        grouped_points(
+        grouped_bars(
             pair_dir / "drafting.svg",
             statistics,
             "draft_us_per_token",
             all_corpora,
             pair,
             "Latency (µs / token)",
-            log_scale=True,
+            unit_divisor=1,
         )
-        grouped_points(
+        grouped_bars(
             pair_dir / "load.svg",
             statistics,
             "load_ms",
             CORPUS_NAMES,
             pair,
-            "Static Cache Load Time (ms)",
-            log_scale=False,
+            "Static Cache Load Time (s)",
+            unit_divisor=1000,
         )
-        grouped_points(
+        grouped_bars(
             pair_dir / "memory.svg",
             statistics,
             "cache_memory_mb",
             CORPUS_NAMES,
             pair,
-            "Static Cache Memory (MB)",
-            log_scale=False,
+            "Static Cache Memory (GB)",
+            unit_divisor=1000,
         )
 
     caches = pl.DataFrame([row.model_dump() for row in create_rows])
