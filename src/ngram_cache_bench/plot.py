@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib
 import polars as pl
 from matplotlib.figure import Figure
+from matplotlib.path import Path as MarkerPath
 from matplotlib.ticker import LogFormatterSciNotation, LogLocator, NullFormatter
 
 from ngram_cache_bench.corpora import CORPUS_LABELS, CORPUS_NAMES
@@ -66,11 +67,21 @@ matplotlib.rcParams.update(
 # A single column of a two-column USENIX paper is 3.33 inches wide.
 FIGURE_SIZE_INCHES = (3.4, 2.3)
 PNG_DPI = 300
-# Marker shapes follow the variant in the order of variants.tsv: a dot for the first, a square for the second.
-MARKERS = ["o", "s", "^", "D"]
-MARKER_COLOR = "#000000"
-# Every error bar is ANSI blue, so the black markers stay distinct from the ranges around them.
-ERROR_BAR_COLOR = "#0000ff"
+# A circled x is an open unit circle with the two diagonals of its inscribed square, 0.707 from the center.
+CROSS = MarkerPath(
+    [(-0.707, -0.707), (0.707, 0.707), (-0.707, 0.707), (0.707, -0.707)],
+    [MarkerPath.MOVETO, MarkerPath.LINETO, MarkerPath.MOVETO, MarkerPath.LINETO],
+)
+UNIT_CIRCLE = MarkerPath.unit_circle()
+CIRCLED_X = MarkerPath.make_compound_path(UNIT_CIRCLE, CROSS)
+# Markers follow the variant in the order of variants.tsv: a black circled x for the first and a green dot for the
+# second. The green is the VGA shade of ANSI green, which keeps a 3:1 contrast against white where #00ff00 has 1.4:1.
+MARKERS = [CIRCLED_X, "o", "s", "^"]
+MARKER_COLORS = ["#000000", "#00aa00", "#000000", "#000000"]
+MARKER_FACE_COLORS = ["none", "#00aa00", "#000000", "#000000"]
+MARKER_SIZES = [5, 4, 4, 4]
+# Every error bar is ANSI red, so the ranges stand out against both markers.
+ERROR_BAR_COLOR = "#ff0000"
 SURFACE_COLOR = "#ffffff"
 TEXT_COLOR = "#000000"
 GRID_COLOR = "#b0b0b0"
@@ -153,18 +164,21 @@ def grouped_points(
             offsets,
             medians,
             yerr=[below, above],
-            fmt=MARKERS[index],
-            markersize=3.5,
-            color=MARKER_COLOR,
+            marker=MARKERS[index],
+            linestyle="none",
+            markersize=MARKER_SIZES[index],
+            color=MARKER_COLORS[index],
+            markerfacecolor=MARKER_FACE_COLORS[index],
+            markeredgewidth=0.8,
             ecolor=ERROR_BAR_COLOR,
-            elinewidth=0.8,
-            capsize=2,
-            capthick=0.8,
+            elinewidth=1,
+            capsize=4,
+            capthick=1,
             label=name,
             zorder=3,
         )
         # errorbar draws the markers over the ranges, so we lift the ranges above the markers. A range smaller
-        # than its marker, such as 3.95 to 4.13 µs, then shows as a blue line across the marker.
+        # than its marker, such as 3.95 to 4.13 µs, then shows as a red line across the marker.
         caplines = container.lines[1]
         barlines = container.lines[2]
         for artist in [*caplines, *barlines]:
