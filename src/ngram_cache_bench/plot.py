@@ -34,15 +34,45 @@ METRICS = ["draft_us_per_token", "load_ms", "accept_pct", "cache_memory_mb"]
 
 # A fixed salt gives the SVG elements the same ids on every run, so an unchanged figure has an unchanged file.
 matplotlib.rcParams["svg.hashsalt"] = "42"
+# Figures follow the look of a USENIX systems paper: the Times-like STIX serif that ships with matplotlib at
+# 9 point, a closed frame, and inward ticks on all four sides.
+matplotlib.rcParams.update(
+    {
+        "font.family": "STIXGeneral",
+        "mathtext.fontset": "stix",
+        "font.size": 9,
+        "axes.linewidth": 0.8,
+        "xtick.direction": "in",
+        "ytick.direction": "in",
+        "xtick.top": True,
+        "ytick.right": True,
+        "xtick.major.size": 3.5,
+        "ytick.major.size": 3.5,
+        "ytick.minor.size": 2,
+        "xtick.major.width": 0.8,
+        "ytick.major.width": 0.8,
+        "ytick.minor.width": 0.6,
+        "legend.fontsize": 8,
+        "legend.handlelength": 1.2,
+        "legend.borderpad": 0.4,
+        "patch.linewidth": 0.6,
+        "legend.frameon": True,
+        "legend.fancybox": False,
+        "legend.edgecolor": "black",
+        "legend.framealpha": 1,
+    }
+)
+# A single column of a two-column USENIX paper is 3.33 inches wide.
+FIGURE_SIZE_INCHES = (3.4, 2.3)
+PNG_DPI = 300
 # Marker shapes follow the variant in the order of variants.tsv: a dot for the first, a square for the second.
 MARKERS = ["o", "s", "^", "D"]
 MARKER_COLOR = "#000000"
 # Every error bar is ANSI blue, so the black markers stay distinct from the ranges around them.
 ERROR_BAR_COLOR = "#0000ff"
 SURFACE_COLOR = "#ffffff"
-TEXT_COLOR = "#1a1a1a"
-MUTED_COLOR = "#666666"
-GRID_COLOR = "#e5e5e5"
+TEXT_COLOR = "#000000"
+GRID_COLOR = "#b0b0b0"
 
 
 def per_run_metrics(stats: pl.DataFrame) -> pl.DataFrame:
@@ -97,7 +127,7 @@ def grouped_points(
 ) -> None:
     """Draw the median of each variant as a point and the fastest to slowest run as a vertical line."""
     tables = {name: metric_table(table, metric, corpora, variant_names) for name, table in statistics.items()}
-    figure = Figure(figsize=(7.2, 3.6), dpi=100, facecolor=SURFACE_COLOR)
+    figure = Figure(figsize=FIGURE_SIZE_INCHES, facecolor=SURFACE_COLOR)
     axes = figure.add_subplot()
     axes.set_facecolor(SURFACE_COLOR)
     # The points of all variants share 0.4 of the space around each corpus tick, so two variants sit 0.2 apart.
@@ -123,11 +153,12 @@ def grouped_points(
             medians,
             yerr=[below, above],
             fmt=MARKERS[index],
-            markersize=4,
+            markersize=3.5,
             color=MARKER_COLOR,
             ecolor=ERROR_BAR_COLOR,
-            elinewidth=1,
-            capsize=3,
+            elinewidth=0.8,
+            capsize=2,
+            capthick=0.8,
             label=name,
             zorder=3,
         )
@@ -145,15 +176,15 @@ def grouped_points(
         axes.yaxis.set_minor_formatter(NullFormatter())
     else:
         axes.set_ylim(0, highest * 1.1)
-    axes.grid(axis="y", color=GRID_COLOR, linewidth=1, zorder=0)
-    axes.spines[["top", "right"]].set_visible(False)
-    axes.tick_params(which="both", length=0, colors=MUTED_COLOR)
-    axes.legend(frameon=False, loc="upper left")
-    figure.tight_layout()
+    axes.grid(axis="y", which="major", color=GRID_COLOR, linestyle=":", linewidth=0.5, zorder=0)
+    # The corpora are categories, so only the log axis carries minor ticks.
+    axes.tick_params(axis="x", which="minor", bottom=False, top=False)
+    axes.legend(loc="upper left")
+    figure.tight_layout(pad=0.3)
     figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
     # GitHub renders PNG images in pull request descriptions, so every figure also gets a PNG copy.
     png_path = path.with_suffix(".png")
-    figure.savefig(png_path, facecolor=SURFACE_COLOR, dpi=200)
+    figure.savefig(png_path, facecolor=SURFACE_COLOR, dpi=PNG_DPI)
 
 
 def markdown(title: str, table: pl.DataFrame, decimals: int) -> str:
