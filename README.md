@@ -52,7 +52,9 @@ ones.
 The tables report the median of the 3 runs. The figures draw the median
 as a bar and the fastest to the slowest run as an error bar. The corpora
 are prefixes of the train text, so each corpus contains every smaller one.
-The memory of a static cache
-is the peak resident memory of a run with the cache minus the peak of the
-same variant without one. Every run is in `results/lookup_stats.csv` and
+The memory figures show the peak resident memory of each run, which holds
+the model, the context and dynamic caches, and the static cache. The
+tables also report the memory of a static cache alone, which is the peak
+of a run with the cache minus the peak of the same variant without one.
+Every run is in `results/lookup_stats.csv` and
 every static cache is in `results/lookup_create.csv`.

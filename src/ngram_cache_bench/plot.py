@@ -32,7 +32,7 @@ LABELS = {"none": "none", **CORPUS_LABELS}
 AXIS_LABELS = {"none": "0", "25mb": "25", "50mb": "50", "100mb": "100", "200mb": "200", "full": "541"}
 # The size of the WikiText-103 training text each static cache was built from.
 X_AXIS_TITLE = "Corpus Size (MB)"
-METRICS = ["draft_us_per_token", "load_ms", "accept_pct", "cache_memory_mb"]
+METRICS = ["draft_us_per_token", "load_ms", "accept_pct", "cache_memory_mb", "peak_memory_mb"]
 
 # A fixed salt gives the SVG elements the same ids on every run, so an unchanged figure has an unchanged file.
 matplotlib.rcParams["svg.hashsalt"] = "42"
@@ -95,9 +95,13 @@ def per_run_metrics(stats: pl.DataFrame) -> pl.DataFrame:
     without_cache = runs_by_variant.agg(peak_without_cache)
     joined = stats.join(without_cache, on="variant")
     cache_memory_mb = (pl.col("peak_rss_bytes") - pl.col("peak_rss_without_cache")) / BYTES_PER_MB
+    # Without a static cache, the peak holds the model and the context and dynamic caches. The model is the same
+    # for every variant, so two variants differ in this peak by the memory of their context and dynamic caches.
+    peak_memory_mb = pl.col("peak_rss_bytes") / BYTES_PER_MB
     return joined.with_columns(
         draft_us_per_token.alias("draft_us_per_token"),
         cache_memory_mb.alias("cache_memory_mb"),
+        peak_memory_mb.alias("peak_memory_mb"),
     )
 
 
@@ -287,6 +291,7 @@ def run() -> None:
     drafting = metric_table(medians, "draft_us_per_token", all_corpora, variant_names)
     load = metric_table(medians, "load_ms", CORPUS_NAMES, variant_names)
     memory = metric_table(medians, "cache_memory_mb", CORPUS_NAMES, variant_names)
+    peak_memory = metric_table(medians, "peak_memory_mb", all_corpora, variant_names)
     acceptance = metric_table(medians, "accept_pct", all_corpora, variant_names)
 
     # Every variant changes one thing from the variant before it, so its figures compare the two, such as
@@ -313,13 +318,14 @@ def run() -> None:
             "Static Cache Load Time (s)",
             unit_divisor=1000,
         )
+        # The memory figure shows the whole peak, so its bars at 0 MB hold the context and dynamic caches.
         grouped_bars(
             pair_dir / "memory.svg",
             statistics,
-            "cache_memory_mb",
-            CORPUS_NAMES,
+            "peak_memory_mb",
+            all_corpora,
             pair,
-            "Static Cache Memory (GB)",
+            "Peak Memory (GB)",
             unit_divisor=1000,
         )
 
@@ -342,6 +348,7 @@ def run() -> None:
         markdown("Drafting time per drafted token (µs)", drafting, 2),
         markdown("Static cache load time (ms)", load, 0),
         markdown("Static cache memory (MB)", memory, 0),
+        markdown("Peak memory (MB)", peak_memory, 0),
         markdown("Accepted drafted tokens (%)", acceptance, 3),
         markdown("Static cache files", cache_files, 0),
     ]

@@ -9,6 +9,7 @@
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | constmap | a verified constmap backs the static cache, with a new static cache file format | constmap loads the static cache 9.81x to 14.87x faster than outermap and holds it in 5.15x to 6.76x less memory. constmap drafts 0.84x to 0.87x as fast with a static cache and at the same speed without one. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | outermap, constmap | outermap stores the ngram caches in an `unordered_dense` segmented map, and constmap is rebased onto the new outermap | outermap loads the static cache 1.41x to 1.65x faster than nocopy, holds it in 1.07x to 1.11x less memory, and drafts 1.02x to 1.13x faster. constmap loads the static cache 8.18x to 15.07x faster than outermap, holds it in 4.31x to 5.29x less memory, and drafts 0.81x to 0.87x as fast with a static cache. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | innervector, constmap | innervector stores the following tokens of each n-gram in a sorted vector on top of outermap, and constmap is rebased onto innervector | innervector drafts 2.26x faster than outermap without a static cache and 0.86x to 0.95x as fast with one, and holds the static cache in 2.42x to 2.87x less memory. constmap drafts 1.08x to 1.15x faster than innervector with a static cache, loads it 6.53x to 15.67x faster, and holds it in 1.87x to 2.20x less memory. |
+| 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | innervector, constmap | innervector searches the sorted followers without branches, constmap shares that search, and the memory figures show the whole peak | innervector drafts 2.09x faster than outermap without a static cache and 1.19x to 1.25x faster with one, and peaks 1.04x to 1.97x lower. constmap drafts 1.06x to 1.20x faster than innervector with a static cache, loads it 6.32x to 16.12x faster, and peaks up to 1.30x lower. |
 
 The change of context size invalidates the first run, and `results/` holds
 the second run.
@@ -74,3 +75,16 @@ and accepts up to 0.08 percentage points more drafted tokens than
 outermap. We rebuilt the constmap static caches with the rebased
 `llama-lookup-create`. Every configuration drafted the same number of
 tokens in all 3 runs.
+
+The eighth run replaces the seventh run of innervector and constmap. The
+seventh run searched the sorted followers with `std::lower_bound`, which
+made innervector draft 0.86x to 0.95x as fast as outermap with a static
+cache. innervector now halves the search range with a conditional move
+at every step. A linear scan of parts with at most 16 followers left
+drafting unchanged in a quick test, because the slow searches are in the
+parts of frequent 2-grams with thousands of followers. constmap stores
+its spans as the same (token, count) pairs and calls the same search.
+Without a static cache, constmap and innervector run the same code, and
+their runs of 0.80 to 0.84 µs and 0.84 to 0.92 µs per drafted token
+overlap. constmap drafts and accepts exactly the same tokens as
+innervector on every corpus.
