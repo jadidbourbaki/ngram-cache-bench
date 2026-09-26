@@ -145,6 +145,7 @@ def grouped_bars(
     ylabel: str,
     unit_divisor: float,
     figure_size: tuple[float, float] = FIGURE_SIZE_INCHES,
+    legend_labels: list[str] | None = None,
 ) -> None:
     """Draw the median of each variant as a bar and the fastest to slowest run as an error bar."""
     tables = {name: metric_table(table, metric, corpora, variant_names) for name, table in statistics.items()}
@@ -173,7 +174,7 @@ def grouped_bars(
             color=BAR_FACE_COLORS[index],
             edgecolor=BAR_EDGE_COLOR,
             linewidth=1.0,
-            label=name,
+            label=name if legend_labels is None else legend_labels[index],
             zorder=2,
         )
         axes.errorbar(
@@ -346,6 +347,8 @@ def run() -> None:
         "Latency (µs / token)",
         unit_divisor=1,
         figure_size=SUMMARY_FIGURE_SIZE_INCHES,
+        # The last variant holds every change of the stack, so the summary names it "optimized".
+        legend_labels=["baseline", "optimized"],
     )
 
     followers_rows = read_rows(FOLLOWERS_PATH, FollowersRow)
