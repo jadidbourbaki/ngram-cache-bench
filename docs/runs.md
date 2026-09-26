@@ -79,8 +79,12 @@ tokens in all 3 runs.
 The eighth run replaces the seventh run of innervector and constmap. The
 seventh run searched the sorted followers with `std::lower_bound`, which
 made innervector draft 0.86x to 0.95x as fast as outermap with a static
-cache. innervector now halves the search range with a conditional move
-at every step. A linear scan of parts with at most 16 followers left
+cache. innervector now halves the search range a fixed number of times
+for a given part length. Clang on the M4 Pro compiles the comparison of
+both searches to a conditional select, so the searches differ in their
+loop exit. The exit of `std::lower_bound` depends on the loaded tokens,
+and the exit of the new search depends only on the part length. We have
+not measured branch mispredictions. A linear scan of parts with at most 16 followers left
 drafting unchanged in a quick test, because the slow searches are in the
 parts of frequent 2-grams with thousands of followers. constmap stores
 its spans as the same (token, count) pairs and calls the same search.
@@ -88,6 +92,6 @@ Without a static cache, constmap and innervector run the same code, and
 their runs of 0.80 to 0.84 µs and 0.84 to 0.92 µs per drafted token
 overlap. constmap drafts and accepts exactly the same tokens as
 innervector on every corpus. We ran innervector at `e597b1b` and constmap
-at `bdd4ea7`, then pinned them to `69b635a` and `899dc75`, which differ
-from the measured commits only by a shorter comment above the search in
+at `bdd4ea7`, then pinned them to `f46522c` and `b90b281`, which differ
+from the measured commits only by the comment above the search in
 `common/ngram-cache.h`.
