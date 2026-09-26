@@ -1,4 +1,4 @@
-"""Build a static cache from every corpus and run llama-lookup-stats with every variant."""
+"""Build a static cache from every corpus and run llama-lookup-stats with every selected variant."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from ngram_cache_bench import machine
 from ngram_cache_bench.build import tool_path
 from ngram_cache_bench.corpora import CORPUS_NAMES, corpus_path
 from ngram_cache_bench.paths import HELD_OUT_PATH, MODEL_PATH, WORK_DIR
-from ngram_cache_bench.results import CREATE_PATH, STATS_PATH, CreateRow, StatsRow, write_rows
-from ngram_cache_bench.variants import load_variants
+from ngram_cache_bench.results import CREATE_PATH, STATS_PATH, CreateRow, StatsRow, read_rows, write_rows
+from ngram_cache_bench.variants import Variant, load_variants
 
 CACHE_DIR = WORK_DIR / "caches"
 LOG_DIR = WORK_DIR / "logs"
@@ -53,14 +53,34 @@ def cache_path(cache_format: str, corpus_name: str) -> Path:
     return CACHE_DIR / f"static-{cache_format}-{corpus_name}.bin"
 
 
-def create_caches() -> list[CreateRow]:
-    rows = []
+def select_variants(variant_names: list[str] | None) -> list[Variant]:
+    """Return the variants of variants.tsv with the given names, or every variant when no names are given."""
+    variants = load_variants()
+    if variant_names is None:
+        return variants
+    known_names = {variant.name for variant in variants}
+    unknown_names = [name for name in variant_names if name not in known_names]
+    if unknown_names:
+        raise SystemExit(f"variants.tsv has no variant named {', '.join(unknown_names)}")
+    return [variant for variant in variants if variant.name in variant_names]
+
+
+def create_caches(variants: list[Variant]) -> list[CreateRow]:
+    """Build the missing static caches of the given variants and return a row for every cache on disk."""
+    existing_rows = read_rows(CREATE_PATH, CreateRow) if CREATE_PATH.exists() else []
+    rows_by_cache = {(row.cache_format, row.corpus): row for row in existing_rows}
     builders = {}
-    for variant in load_variants():
+    for variant in variants:
         builders.setdefault(variant.cache_format, variant.name)
     for cache_format, builder in builders.items():
         for corpus_name in CORPUS_NAMES:
             cache = cache_path(cache_format, corpus_name)
+            # A cache on disk with a recorded row came from the same pinned tool and corpus, so we reuse it.
+            if cache.exists() and (cache_format, corpus_name) in rows_by_cache:
+                print(f"reused {cache_format} cache for corpus {corpus_name}", flush=True)
+                continue
+            # llama-lookup-create writes to a partial file, so an interrupted run leaves no cache to reuse.
+            partial_cache = cache.with_suffix(".partial")
             command = [
                 str(tool_path(builder, "llama-lookup-create")),
                 "-m",
@@ -68,28 +88,27 @@ def create_caches() -> list[CreateRow]:
                 "-f",
                 str(corpus_path(corpus_name)),
                 "-lcs",
-                str(cache),
+                str(partial_cache),
                 "-c",
                 "512",
                 "-ngl",
                 "0",
             ]
             peak_rss_bytes = run_measured(command, LOG_DIR / f"create-{cache_format}-{corpus_name}.log")
-            rows.append(
-                CreateRow(
-                    cache_format=cache_format,
-                    corpus=corpus_name,
-                    cache_bytes=cache.stat().st_size,
-                    peak_rss_bytes=peak_rss_bytes,
-                )
+            partial_cache.rename(cache)
+            rows_by_cache[(cache_format, corpus_name)] = CreateRow(
+                cache_format=cache_format,
+                corpus=corpus_name,
+                cache_bytes=cache.stat().st_size,
+                peak_rss_bytes=peak_rss_bytes,
             )
             print(f"created {cache_format} cache for corpus {corpus_name}", flush=True)
-    return rows
+    return list(rows_by_cache.values())
 
 
-def run_stats() -> list[StatsRow]:
+def run_stats(variants: list[Variant]) -> list[StatsRow]:
     rows = []
-    for variant in load_variants():
+    for variant in variants:
         for corpus_name in ["none", *CORPUS_NAMES]:
             command = [
                 str(tool_path(variant.name, "llama-lookup-stats")),
@@ -127,11 +146,16 @@ def run_stats() -> list[StatsRow]:
     return rows
 
 
-def run() -> None:
+def run(variant_names: list[str] | None = None) -> None:
+    """Measure the given variants, or every variant, and keep the recorded runs of the other variants."""
+    variants = select_variants(variant_names)
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     machine.run()
-    create_rows = create_caches()
+    create_rows = create_caches(variants)
     write_rows(CREATE_PATH, create_rows)
-    stats_rows = run_stats()
-    write_rows(STATS_PATH, stats_rows)
+    measured_names = {variant.name for variant in variants}
+    existing_rows = read_rows(STATS_PATH, StatsRow) if STATS_PATH.exists() else []
+    kept_rows = [row for row in existing_rows if row.variant not in measured_names]
+    new_rows = run_stats(variants)
+    write_rows(STATS_PATH, kept_rows + new_rows)

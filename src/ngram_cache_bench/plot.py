@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import math
+import itertools
 from pathlib import Path
 
 import matplotlib
@@ -117,12 +117,15 @@ def aggregate(runs: pl.DataFrame, statistic: str) -> pl.DataFrame:
 def metric_table(
     summary: pl.DataFrame, metric: str, corpora: list[str], variant_names: list[str]
 ) -> pl.DataFrame:
-    """Return one row per corpus and one column per variant, plus the ratio of each variant to the first."""
+    """Return one row per corpus and one column per variant, plus the ratio of each variant to the one before it."""
     wide = summary.pivot(on="variant", index="corpus", values=metric)
     corpus_order = pl.DataFrame({"corpus": corpora})
     ordered = corpus_order.join(wide, on="corpus", how="left")
-    reference = variant_names[0]
-    ratios = [(pl.col(reference) / pl.col(name)).alias(f"{reference} / {name}") for name in variant_names[1:]]
+    consecutive_pairs = itertools.pairwise(variant_names)
+    ratios = [
+        (pl.col(previous) / pl.col(name)).alias(f"{previous} / {name}")
+        for previous, name in consecutive_pairs
+    ]
     labeled = ordered.with_columns(pl.col("corpus").replace_strict(LABELS))
     return labeled.select("corpus", *variant_names, *ratios)
 
@@ -188,11 +191,9 @@ def grouped_points(
     if log_scale:
         # A log axis keeps a 2 µs point and a 165 µs point readable on one figure.
         axes.set_yscale("log")
-        # The axis starts at the power of ten below the fastest run and ends with room above the slowest run:
-        # runs of 1.78 and 310 µs give 10^0 to 434 µs.
-        lowest_exponent = math.log10(lowest)
-        lowest_decade = 10 ** math.floor(lowest_exponent)
-        axes.set_ylim(lowest_decade, highest * 1.4)
+        # The axis leaves a factor of 2 below the fastest run and above the slowest run, so runs of 1.78 and
+        # 310 µs give 0.89 to 620 µs, and runs of 0.72 and 6.1 µs give 0.36 to 12 µs.
+        axes.set_ylim(lowest / 2, highest * 2)
         # Major ticks sit at powers of ten and read 10^0, 10^1, and 10^2, so the labels show that the axis is
         # logarithmic. Minor ticks mark 2 to 9 times each power of ten without labels.
         decade_locator = LogLocator(base=10)
@@ -206,7 +207,8 @@ def grouped_points(
     axes.grid(axis="y", which="major", color=GRID_COLOR, linestyle="-", linewidth=0.8, zorder=0)
     # The corpora are categories, so only the log axis carries minor ticks.
     axes.tick_params(axis="x", which="minor", bottom=False, top=False)
-    axes.legend(loc="upper left")
+    # matplotlib places the legend where it covers the fewest points, since a fixed corner can hide data.
+    axes.legend(loc="best")
     figure.tight_layout(pad=0.3)
     figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
     # GitHub renders PNG images in pull request descriptions, so every figure also gets a PNG copy.
@@ -257,34 +259,39 @@ def run() -> None:
     memory = metric_table(medians, "cache_memory_mb", CORPUS_NAMES, variant_names)
     acceptance = metric_table(medians, "accept_pct", all_corpora, variant_names)
 
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    grouped_points(
-        FIGURES_DIR / "drafting.svg",
-        statistics,
-        "draft_us_per_token",
-        all_corpora,
-        variant_names,
-        "Latency (µs / token)",
-        log_scale=True,
-    )
-    grouped_points(
-        FIGURES_DIR / "load.svg",
-        statistics,
-        "load_ms",
-        CORPUS_NAMES,
-        variant_names,
-        "Static Cache Load Time (ms)",
-        log_scale=False,
-    )
-    grouped_points(
-        FIGURES_DIR / "memory.svg",
-        statistics,
-        "cache_memory_mb",
-        CORPUS_NAMES,
-        variant_names,
-        "Static Cache Memory (MB)",
-        log_scale=False,
-    )
+    # Every variant changes one thing from the variant before it, so its figures compare the two, such as
+    # nocopy against baseline in results/figures/nocopy/.
+    for previous, current in itertools.pairwise(variant_names):
+        pair = [previous, current]
+        pair_dir = FIGURES_DIR / current
+        pair_dir.mkdir(parents=True, exist_ok=True)
+        grouped_points(
+            pair_dir / "drafting.svg",
+            statistics,
+            "draft_us_per_token",
+            all_corpora,
+            pair,
+            "Latency (µs / token)",
+            log_scale=True,
+        )
+        grouped_points(
+            pair_dir / "load.svg",
+            statistics,
+            "load_ms",
+            CORPUS_NAMES,
+            pair,
+            "Static Cache Load Time (ms)",
+            log_scale=False,
+        )
+        grouped_points(
+            pair_dir / "memory.svg",
+            statistics,
+            "cache_memory_mb",
+            CORPUS_NAMES,
+            pair,
+            "Static Cache Memory (MB)",
+            log_scale=False,
+        )
 
     caches = pl.DataFrame([row.model_dump() for row in create_rows])
     cache_files = caches.select(
