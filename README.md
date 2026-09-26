@@ -10,6 +10,7 @@ changes one thing from the variant before it.
 | `baseline` | upstream llama.cpp at `84e76d8` |
 | `nocopy` | the drafting loop reads cache entries by reference instead of copying them |
 | `outermap` | every cache is an `unordered_dense` segmented map from each n-gram to a `std::unordered_map` of its following tokens |
+| `innervector` | the following tokens of each n-gram are a vector of (token, count) pairs sorted by token |
 | `constmap` | the static cache is a verified constmap from each 2-gram to a span of (token, count) pairs sorted by token |
 We build static caches from [WikiText-103](https://arxiv.org/abs/1609.07843)
 (2016) train and replay WikiText-103 test through `llama-lookup-stats`.
@@ -24,7 +25,7 @@ The benchmark runs on macOS and Linux with git, CMake, a C++17 compiler,
 ```bash
 git clone --recurse-submodules https://github.com/jadidbourbaki/ngram-cache-bench
 cd ngram-cache-bench
-just fetch corpora build stats plot
+just fetch corpora build stats followers plot
 ```
 
 | step | what it does |
@@ -33,7 +34,8 @@ just fetch corpora build stats plot
 | `corpora` | cuts WikiText-103 train into nested corpora of 25, 50, 100, 200, and 541 MB |
 | `build` | checks out and builds every variant under `work/` |
 | `stats` | builds the missing static caches and runs `llama-lookup-stats` 3 times per variant and corpus |
-| `plot` | writes `results/tables.md` and, for every variant, figures comparing it with the variant before it in `results/figures/<variant>/` |
+| `followers` | counts the distinct tokens that follow each 2-gram of the 541 MB static cache into `results/followers.csv` |
+| `plot` | writes `results/tables.md`, the figures comparing every variant with the variant before it in `results/figures/<variant>/`, and the distribution of followers in `results/figures/followers.svg` |
 
 `stats --variants NAME ...` measures only the named variants and keeps
 the recorded runs of the others, so a new variant does not rerun the old

@@ -14,6 +14,10 @@ build:
 stats:
     uv run ngram-cache-bench stats
 
+# Count the distinct tokens that follow each 2-gram of the 541 MB static cache
+followers:
+    uv run ngram-cache-bench followers
+
 # Draw the figures and write the tables of results/
 plot:
     uv run ngram-cache-bench plot

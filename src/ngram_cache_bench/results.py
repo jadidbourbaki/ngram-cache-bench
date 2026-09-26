@@ -13,6 +13,7 @@ from ngram_cache_bench.paths import RESULTS_DIR
 STATS_PATH = RESULTS_DIR / "lookup_stats.csv"
 CREATE_PATH = RESULTS_DIR / "lookup_create.csv"
 MACHINE_PATH = RESULTS_DIR / "machine.csv"
+FOLLOWERS_PATH = RESULTS_DIR / "followers.csv"
 
 
 class StatsRow(BaseModel):
@@ -32,6 +33,11 @@ class CreateRow(BaseModel):
     corpus: str
     cache_bytes: int
     peak_rss_bytes: int
+
+
+class FollowersRow(BaseModel):
+    followers: int
+    ngrams: int
 
 
 class Machine(BaseModel):

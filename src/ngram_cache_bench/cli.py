@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import argparse
 
-from ngram_cache_bench import build, corpora, fetch, plot, stats
+from ngram_cache_bench import build, corpora, fetch, followers, plot, stats
 
 STEPS = {
     "fetch": ("download WikiText-103 and the tokenizer model at pinned revisions", fetch.run),
     "corpora": ("cut WikiText-103 train into the corpora of the static caches", corpora.run),
     "build": ("check out and build every llama.cpp variant in variants.tsv", build.run),
+    "followers": (
+        "count the distinct tokens that follow each 2-gram of the 541 MB static cache",
+        followers.run,
+    ),
     "plot": ("draw the figures and write the tables of results/", plot.run),
 }
 

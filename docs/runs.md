@@ -8,6 +8,7 @@
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | outermap | outermap replaces flatmap and changes only the outer map | outermap drafts 1.04x to 1.16x faster than nocopy and loads the static cache 1.41x to 1.68x faster. outermap holds the 541 MB cache in 1.16x more memory. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | constmap | a verified constmap backs the static cache, with a new static cache file format | constmap loads the static cache 9.81x to 14.87x faster than outermap and holds it in 5.15x to 6.76x less memory. constmap drafts 0.84x to 0.87x as fast with a static cache and at the same speed without one. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | outermap, constmap | outermap stores the ngram caches in an `unordered_dense` segmented map, and constmap is rebased onto the new outermap | outermap loads the static cache 1.41x to 1.65x faster than nocopy, holds it in 1.07x to 1.11x less memory, and drafts 1.02x to 1.13x faster. constmap loads the static cache 8.18x to 15.07x faster than outermap, holds it in 4.31x to 5.29x less memory, and drafts 0.81x to 0.87x as fast with a static cache. |
+| 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | innervector, constmap | innervector stores the following tokens of each n-gram in a sorted vector on top of outermap, and constmap is rebased onto innervector | innervector drafts 2.26x faster than outermap without a static cache and 0.86x to 0.95x as fast with one, and holds the static cache in 2.42x to 2.87x less memory. constmap drafts 1.08x to 1.15x faster than innervector with a static cache, loads it 6.53x to 15.67x faster, and holds it in 1.87x to 2.20x less memory. |
 
 The change of context size invalidates the first run, and `results/` holds
 the second run.
@@ -60,5 +61,16 @@ peak. A single run with the 541 MB cache peaked at 3.35 GB with the
 segmented map, 3.25 GB with an exact `reserve` from a first pass over the
 file, and 4.01 GB with the plain map. The first pass added 0.4 s to the
 load. We rebuilt the constmap static caches with the rebased
+`llama-lookup-create`. Every configuration drafted the same number of
+tokens in all 3 runs.
+
+The seventh run adds innervector between outermap and constmap, so the
+binary search over sorted followers now enters with innervector. We ran
+innervector at `c512387` and constmap at `e96338d`, then pinned them to
+`9bec231` and `948eb38`, which differ from the measured commits only by
+the removal of a three-line comment in `common/ngram-cache.h`.
+innervector breaks ties between equally frequent tokens in token order
+and accepts up to 0.08 percentage points more drafted tokens than
+outermap. We rebuilt the constmap static caches with the rebased
 `llama-lookup-create`. Every configuration drafted the same number of
 tokens in all 3 runs.

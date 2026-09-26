@@ -13,9 +13,11 @@ from ngram_cache_bench.corpora import CORPUS_LABELS, CORPUS_NAMES
 from ngram_cache_bench.paths import RESULTS_DIR, ROOT
 from ngram_cache_bench.results import (
     CREATE_PATH,
+    FOLLOWERS_PATH,
     MACHINE_PATH,
     STATS_PATH,
     CreateRow,
+    FollowersRow,
     Machine,
     StatsRow,
     read_rows,
@@ -198,6 +200,52 @@ def grouped_bars(
     figure.savefig(png_path, facecolor=SURFACE_COLOR, dpi=PNG_DPI)
 
 
+def followers_cdf(path: Path, followers_rows: list[FollowersRow]) -> None:
+    """Draw the cumulative share of 2-grams and of (2-gram, token) pairs by the number of distinct followers."""
+    followers = pl.DataFrame([row.model_dump() for row in followers_rows])
+    # A 2-gram with 3 followers holds 3 (2-gram, token) pairs.
+    pairs = pl.col("followers") * pl.col("ngrams")
+    cumulative_ngrams = pl.col("ngrams").cum_sum() / pl.col("ngrams").sum()
+    cumulative_pairs = pairs.cum_sum() / pairs.sum()
+    sorted_followers = followers.sort("followers")
+    shares = sorted_followers.with_columns(
+        cumulative_ngrams.alias("ngram_share"),
+        cumulative_pairs.alias("pair_share"),
+    )
+    follower_counts = shares["followers"].to_list()
+    ngram_shares = shares["ngram_share"].to_list()
+    pair_shares = shares["pair_share"].to_list()
+    figure = Figure(figsize=FIGURE_SIZE_INCHES, facecolor=SURFACE_COLOR)
+    axes = figure.add_subplot()
+    axes.set_facecolor(SURFACE_COLOR)
+    # The counts are whole numbers, so each line steps up at a count and stays flat until the next one.
+    axes.step(
+        follower_counts, ngram_shares, where="post", color=BAR_EDGE_COLOR, linewidth=1.2, label="2-grams"
+    )
+    axes.step(
+        follower_counts,
+        pair_shares,
+        where="post",
+        color=BAR_EDGE_COLOR,
+        linewidth=1.2,
+        linestyle="--",
+        label="(2-gram, token) pairs",
+    )
+    # Counts run from 1 to more than 20,000 followers, so the axis is logarithmic and reads 10^0 to 10^4.
+    axes.set_xscale("log")
+    axes.set_xlim(1, follower_counts[-1])
+    axes.set_ylim(0, 1)
+    axes.set_xlabel("Distinct Followers of a 2-gram", color=TEXT_COLOR)
+    axes.set_ylabel("Cumulative Share", color=TEXT_COLOR)
+    axes.grid(axis="y", which="major", color=GRID_COLOR, linestyle="-", linewidth=0.8, zorder=0)
+    # Both lines end at 1 on the right, so the lower right corner stays clear.
+    axes.legend(loc="lower right")
+    figure.tight_layout(pad=0.8)
+    figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
+    png_path = path.with_suffix(".png")
+    figure.savefig(png_path, facecolor=SURFACE_COLOR, dpi=PNG_DPI)
+
+
 def markdown(title: str, table: pl.DataFrame, decimals: int) -> str:
     """Render a table as markdown with values at the given decimals and ratio columns as "4.48x"."""
     float_columns = [name for name, dtype in table.schema.items() if dtype == pl.Float64]
@@ -274,6 +322,9 @@ def run() -> None:
             "Static Cache Memory (GB)",
             unit_divisor=1000,
         )
+
+    followers_rows = read_rows(FOLLOWERS_PATH, FollowersRow)
+    followers_cdf(FIGURES_DIR / "followers.svg", followers_rows)
 
     caches = pl.DataFrame([row.model_dump() for row in create_rows])
     cache_files = caches.select(
