@@ -10,6 +10,7 @@ changes one thing from the variant before it.
 | `baseline` | upstream llama.cpp at `84e76d8` |
 | `nocopy` | the drafting loop reads cache entries by reference instead of copying them |
 | `outermap` | every cache is a flat `unordered_dense` map from each n-gram to a `std::unordered_map` of its following tokens |
+| `constmap` | the static cache is a verified constmap from each 2-gram to a span of (token, count) pairs sorted by token |
 We build static caches from [WikiText-103](https://arxiv.org/abs/1609.07843)
 (2016) train and replay WikiText-103 test through `llama-lookup-stats`.
 The tokenizer is Qwen2.5 0.5B Instruct. Our results are in

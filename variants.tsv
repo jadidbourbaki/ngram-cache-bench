@@ -2,3 +2,4 @@ name	commit	cache_format
 baseline	84e76d8a23162eca70490da131945ebec1f09bf4	legacy
 nocopy	1d43724081f85ec41eb45abcac372c8cfb2960f0	legacy
 outermap	58abc4a5afacb37a5f3600b22ce9f809b42804a2	legacy
+constmap	814b3509b73b6b306d903cd7dbf67b8487f57a0e	constmap
