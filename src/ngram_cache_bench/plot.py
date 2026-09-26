@@ -8,7 +8,6 @@ from pathlib import Path
 import matplotlib
 import polars as pl
 from matplotlib.figure import Figure
-from matplotlib.path import Path as MarkerPath
 from matplotlib.ticker import LogFormatterSciNotation, LogLocator, NullFormatter
 
 from ngram_cache_bench.corpora import CORPUS_LABELS, CORPUS_NAMES
@@ -67,19 +66,12 @@ matplotlib.rcParams.update(
 # A single column of a two-column USENIX paper is 3.33 inches wide.
 FIGURE_SIZE_INCHES = (3.4, 2.3)
 PNG_DPI = 300
-# A circled x is an open unit circle with the two diagonals of its inscribed square, 0.707 from the center.
-CROSS = MarkerPath(
-    [(-0.707, -0.707), (0.707, 0.707), (-0.707, 0.707), (0.707, -0.707)],
-    [MarkerPath.MOVETO, MarkerPath.LINETO, MarkerPath.MOVETO, MarkerPath.LINETO],
-)
-UNIT_CIRCLE = MarkerPath.unit_circle()
-CIRCLED_X = MarkerPath.make_compound_path(UNIT_CIRCLE, CROSS)
-# Markers follow the variant in the order of variants.tsv: a black circled x for the first and a green dot for the
-# second. The green is the VGA shade of ANSI green, which keeps a 3:1 contrast against white where #00ff00 has 1.4:1.
-MARKERS = [CIRCLED_X, "o", "s", "^"]
-MARKER_COLORS = ["#000000", "#00aa00", "#000000", "#000000"]
-MARKER_FACE_COLORS = ["none", "#00aa00", "#000000", "#000000"]
-MARKER_SIZES = [5, 4, 4, 4]
+# Markers follow the variant in the order of variants.tsv: an open black circle for the first and a filled black
+# circle for the second.
+MARKERS = ["o", "o", "s", "^"]
+MARKER_COLOR = "#000000"
+MARKER_FACE_COLORS = ["none", "#000000", "#000000", "#000000"]
+MARKER_SIZE = 4
 # Every error bar is ANSI red, so the ranges stand out against both markers.
 ERROR_BAR_COLOR = "#ff0000"
 SURFACE_COLOR = "#ffffff"
@@ -166,8 +158,8 @@ def grouped_points(
             yerr=[below, above],
             marker=MARKERS[index],
             linestyle="none",
-            markersize=MARKER_SIZES[index],
-            color=MARKER_COLORS[index],
+            markersize=MARKER_SIZE,
+            color=MARKER_COLOR,
             markerfacecolor=MARKER_FACE_COLORS[index],
             markeredgewidth=0.8,
             ecolor=ERROR_BAR_COLOR,
