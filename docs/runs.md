@@ -87,4 +87,7 @@ its spans as the same (token, count) pairs and calls the same search.
 Without a static cache, constmap and innervector run the same code, and
 their runs of 0.80 to 0.84 µs and 0.84 to 0.92 µs per drafted token
 overlap. constmap drafts and accepts exactly the same tokens as
-innervector on every corpus.
+innervector on every corpus. We ran innervector at `e597b1b` and constmap
+at `bdd4ea7`, then pinned them to `69b635a` and `899dc75`, which differ
+from the measured commits only by a shorter comment above the search in
+`common/ngram-cache.h`.

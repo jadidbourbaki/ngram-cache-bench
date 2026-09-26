@@ -242,8 +242,8 @@ def followers_cdf(path: Path, followers_rows: list[FollowersRow]) -> None:
     axes.set_xlabel("Distinct Followers of a 2-gram", color=TEXT_COLOR)
     axes.set_ylabel("Cumulative Share", color=TEXT_COLOR)
     axes.grid(axis="y", which="major", color=GRID_COLOR, linestyle="-", linewidth=0.8, zorder=0)
-    # Both lines end at 1 on the right, so the lower right corner stays clear.
-    axes.legend(loc="lower right")
+    # Both lines stay above 0.3 right of 10 followers, so the legend hugs the lower right corner below them.
+    axes.legend(loc="lower right", borderaxespad=0.3)
     figure.tight_layout(pad=0.8)
     figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
     png_path = path.with_suffix(".png")
