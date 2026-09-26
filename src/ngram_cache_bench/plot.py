@@ -70,6 +70,8 @@ matplotlib.rcParams.update(
 # A figure 3 inches wide displays at 288 px in a browser without scaling, so three figures fit side by side in
 # a blog column and 11 point text is 15 px.
 FIGURE_SIZE_INCHES = (3.0, 2.4)
+# The summary figure is 2 inches wide for every inch of height, the shape X shows in full in a link preview.
+SUMMARY_FIGURE_SIZE_INCHES = (6.0, 3.0)
 PNG_DPI = 300
 # Bars follow the variant in the order of variants.tsv: an open black bar for the earlier variant and a filled
 # black bar for the later one.
@@ -141,10 +143,11 @@ def grouped_bars(
     variant_names: list[str],
     ylabel: str,
     unit_divisor: float,
+    figure_size: tuple[float, float] = FIGURE_SIZE_INCHES,
 ) -> None:
     """Draw the median of each variant as a bar and the fastest to slowest run as an error bar."""
     tables = {name: metric_table(table, metric, corpora, variant_names) for name, table in statistics.items()}
-    figure = Figure(figsize=FIGURE_SIZE_INCHES, facecolor=SURFACE_COLOR)
+    figure = Figure(figsize=figure_size, facecolor=SURFACE_COLOR)
     axes = figure.add_subplot()
     axes.set_facecolor(SURFACE_COLOR)
     positions = list(range(len(corpora)))
@@ -328,6 +331,21 @@ def run() -> None:
             "Peak Memory (GB)",
             unit_divisor=1000,
         )
+
+    # The summary figure compares the first variant with the last one, such as baseline against constmap.
+    summary_dir = FIGURES_DIR / "summary"
+    summary_dir.mkdir(parents=True, exist_ok=True)
+    first_and_last = [variant_names[0], variant_names[-1]]
+    grouped_bars(
+        summary_dir / "drafting.svg",
+        statistics,
+        "draft_us_per_token",
+        all_corpora,
+        first_and_last,
+        "Latency (µs / token)",
+        unit_divisor=1,
+        figure_size=SUMMARY_FIGURE_SIZE_INCHES,
+    )
 
     followers_rows = read_rows(FOLLOWERS_PATH, FollowersRow)
     followers_cdf(FIGURES_DIR / "followers.svg", followers_rows)
