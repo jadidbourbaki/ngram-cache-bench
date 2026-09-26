@@ -7,6 +7,7 @@ from pathlib import Path
 import matplotlib
 import polars as pl
 from matplotlib.figure import Figure
+from matplotlib.ticker import LogLocator, NullFormatter, ScalarFormatter
 
 from ngram_cache_bench.corpora import CORPUS_LABELS, CORPUS_NAMES
 from ngram_cache_bench.paths import RESULTS_DIR, ROOT
@@ -82,56 +83,74 @@ def metric_table(
     return labeled.select("corpus", *variant_names, *ratios)
 
 
-def grouped_bars(
+def grouped_points(
     path: Path,
     statistics: dict[str, pl.DataFrame],
     metric: str,
     corpora: list[str],
     variant_names: list[str],
     ylabel: str,
+    log_scale: bool,
 ) -> None:
-    """Draw the median of each variant as a bar and the fastest to slowest run as an error bar."""
+    """Draw the median of each variant as a point and the fastest to slowest run as a vertical line."""
     tables = {name: metric_table(table, metric, corpora, variant_names) for name, table in statistics.items()}
     figure = Figure(figsize=(7.2, 3.6), dpi=100, facecolor=SURFACE_COLOR)
     axes = figure.add_subplot()
     axes.set_facecolor(SURFACE_COLOR)
-    slot_width = 0.8 / len(variant_names)
-    # Each bar fills 90% of its slot, so neighboring bars are separated by a gap and the fill ends at the median.
-    bar_width = 0.9 * slot_width
+    # The points of all variants share 0.4 of the space around each corpus tick, so two variants sit 0.2 apart.
+    slot_width = 0.4 / len(variant_names)
+    fastest_runs = tables["min"].select(variant_names)
     slowest_runs = tables["max"].select(variant_names)
+    column_minimums = fastest_runs.min()
     column_maximums = slowest_runs.max()
-    tallest = max(column_maximums.row(0))
+    lowest = min(column_minimums.row(0))
+    highest = max(column_maximums.row(0))
     for index, name in enumerate(variant_names):
-        medians = tables["median"][name].to_list()
-        minimums = tables["min"][name].to_list()
-        maximums = tables["max"][name].to_list()
+        median_column = tables["median"][name]
+        minimum_column = tables["min"][name]
+        maximum_column = tables["max"][name]
+        medians = median_column.to_list()
+        minimums = minimum_column.to_list()
+        maximums = maximum_column.to_list()
         below = [median - minimum for median, minimum in zip(medians, minimums, strict=True)]
         above = [maximum - median for median, maximum in zip(medians, maximums, strict=True)]
-        offsets = [position - 0.4 + slot_width * (index + 0.5) for position in range(len(corpora))]
-        axes.bar(
+        offsets = [position - 0.2 + slot_width * (index + 0.5) for position in range(len(corpora))]
+        axes.errorbar(
             offsets,
             medians,
-            bar_width,
             yerr=[below, above],
-            error_kw={"ecolor": TEXT_COLOR, "elinewidth": 1, "capsize": 3},
-            label=name,
+            fmt="o",
+            markersize=6,
             color=SERIES_COLORS[index],
-            linewidth=0,
+            ecolor=SERIES_COLORS[index],
+            elinewidth=1.5,
+            capsize=3,
+            label=name,
             zorder=3,
         )
     axes.set_xticks(list(range(len(corpora))))
     axes.set_xticklabels([AXIS_LABELS[corpus] for corpus in corpora])
     axes.set_xlabel(X_AXIS_TITLE, color=TEXT_COLOR)
     axes.set_ylabel(ylabel, color=TEXT_COLOR)
-    axes.set_ylim(0, tallest * 1.1)
+    if log_scale:
+        # A log axis keeps a 2 µs point and a 165 µs point readable on one figure.
+        axes.set_yscale("log")
+        # The limits leave room below the fastest and above the slowest run: runs of 1.78 and 310 µs give 1.2 to 434 µs.
+        axes.set_ylim(lowest * 0.7, highest * 1.4)
+        axes.yaxis.set_major_locator(LogLocator(subs=(1.0, 2.0, 5.0)))
+        axes.yaxis.set_major_formatter(ScalarFormatter())
+        axes.yaxis.set_minor_formatter(NullFormatter())
+    else:
+        axes.set_ylim(0, highest * 1.1)
     axes.grid(axis="y", color=GRID_COLOR, linewidth=1, zorder=0)
     axes.spines[["top", "right"]].set_visible(False)
-    axes.tick_params(length=0, colors=MUTED_COLOR)
+    axes.tick_params(which="both", length=0, colors=MUTED_COLOR)
     axes.legend(frameon=False, loc="upper left")
     figure.tight_layout()
     figure.savefig(path, facecolor=SURFACE_COLOR, metadata={"Date": None})
     # GitHub renders PNG images in pull request descriptions, so every figure also gets a PNG copy.
-    figure.savefig(path.with_suffix(".png"), facecolor=SURFACE_COLOR, dpi=200)
+    png_path = path.with_suffix(".png")
+    figure.savefig(png_path, facecolor=SURFACE_COLOR, dpi=200)
 
 
 def markdown(title: str, table: pl.DataFrame, decimals: int) -> str:
@@ -178,29 +197,32 @@ def run() -> None:
     acceptance = metric_table(medians, "accept_pct", all_corpora, variant_names)
 
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    grouped_bars(
+    grouped_points(
         FIGURES_DIR / "drafting.svg",
         statistics,
         "draft_us_per_token",
         all_corpora,
         variant_names,
         "Latency (µs / token)",
+        log_scale=True,
     )
-    grouped_bars(
+    grouped_points(
         FIGURES_DIR / "load.svg",
         statistics,
         "load_ms",
         CORPUS_NAMES,
         variant_names,
         "Static Cache Load Time (ms)",
+        log_scale=False,
     )
-    grouped_bars(
+    grouped_points(
         FIGURES_DIR / "memory.svg",
         statistics,
         "cache_memory_mb",
         CORPUS_NAMES,
         variant_names,
         "Static Cache Memory (MB)",
+        log_scale=False,
     )
 
     caches = pl.DataFrame([row.model_dump() for row in create_rows])
@@ -212,7 +234,8 @@ def run() -> None:
     )
     memory_gib = machine.memory_bytes / 2**30
     machine_line = f"{machine.cpu}, {machine.cores} cores, {memory_gib:.0f} GiB, {machine.os}"
-    run_count = stats["run"].n_unique()
+    run_numbers = stats["run"]
+    run_count = run_numbers.n_unique()
     sections = [
         f"Machine: {machine_line}. Every value is the median of {run_count} runs of `llama-lookup-stats`.\n",
         markdown("Drafting time per drafted token (µs)", drafting, 2),
