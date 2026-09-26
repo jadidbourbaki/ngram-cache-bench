@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import matplotlib
 import polars as pl
 from matplotlib.figure import Figure
-from matplotlib.ticker import LogLocator, NullFormatter, ScalarFormatter
+from matplotlib.ticker import LogFormatterSciNotation, LogLocator, NullFormatter
 
 from ngram_cache_bench.corpora import CORPUS_LABELS, CORPUS_NAMES
 from ngram_cache_bench.paths import RESULTS_DIR, ROOT
@@ -148,7 +149,7 @@ def grouped_points(
         below = [median - minimum for median, minimum in zip(medians, minimums, strict=True)]
         above = [maximum - median for median, maximum in zip(medians, maximums, strict=True)]
         offsets = [position - 0.2 + slot_width * (index + 0.5) for position in range(len(corpora))]
-        axes.errorbar(
+        container = axes.errorbar(
             offsets,
             medians,
             yerr=[below, above],
@@ -162,6 +163,12 @@ def grouped_points(
             label=name,
             zorder=3,
         )
+        # errorbar draws the markers over the ranges, so we lift the ranges above the markers. A range smaller
+        # than its marker, such as 3.95 to 4.13 µs, then shows as a blue line across the marker.
+        caplines = container.lines[1]
+        barlines = container.lines[2]
+        for artist in [*caplines, *barlines]:
+            artist.set_zorder(4)
     axes.set_xticks(list(range(len(corpora))))
     axes.set_xticklabels([AXIS_LABELS[corpus] for corpus in corpora])
     axes.set_xlabel(X_AXIS_TITLE, color=TEXT_COLOR)
@@ -169,10 +176,18 @@ def grouped_points(
     if log_scale:
         # A log axis keeps a 2 µs point and a 165 µs point readable on one figure.
         axes.set_yscale("log")
-        # The limits leave room below the fastest and above the slowest run: runs of 1.78 and 310 µs give 1.2 to 434 µs.
-        axes.set_ylim(lowest * 0.7, highest * 1.4)
-        axes.yaxis.set_major_locator(LogLocator(subs=(1.0, 2.0, 5.0)))
-        axes.yaxis.set_major_formatter(ScalarFormatter())
+        # The axis starts at the power of ten below the fastest run and ends with room above the slowest run:
+        # runs of 1.78 and 310 µs give 10^0 to 434 µs.
+        lowest_exponent = math.log10(lowest)
+        lowest_decade = 10 ** math.floor(lowest_exponent)
+        axes.set_ylim(lowest_decade, highest * 1.4)
+        # Major ticks sit at powers of ten and read 10^0, 10^1, and 10^2, so the labels show that the axis is
+        # logarithmic. Minor ticks mark 2 to 9 times each power of ten without labels.
+        decade_locator = LogLocator(base=10)
+        in_between_locator = LogLocator(base=10, subs=(2, 3, 4, 5, 6, 7, 8, 9))
+        axes.yaxis.set_major_locator(decade_locator)
+        axes.yaxis.set_minor_locator(in_between_locator)
+        axes.yaxis.set_major_formatter(LogFormatterSciNotation(base=10))
         axes.yaxis.set_minor_formatter(NullFormatter())
     else:
         axes.set_ylim(0, highest * 1.1)
