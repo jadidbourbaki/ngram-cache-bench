@@ -95,7 +95,9 @@ def grouped_bars(
     figure = Figure(figsize=(7.2, 3.6), dpi=100, facecolor=SURFACE_COLOR)
     axes = figure.add_subplot()
     axes.set_facecolor(SURFACE_COLOR)
-    bar_width = 0.8 / len(variant_names)
+    slot_width = 0.8 / len(variant_names)
+    # Each bar fills 90% of its slot, so neighboring bars are separated by a gap and the fill ends at the median.
+    bar_width = 0.9 * slot_width
     slowest_runs = tables["max"].select(variant_names)
     column_maximums = slowest_runs.max()
     tallest = max(column_maximums.row(0))
@@ -105,7 +107,7 @@ def grouped_bars(
         maximums = tables["max"][name].to_list()
         below = [median - minimum for median, minimum in zip(medians, minimums, strict=True)]
         above = [maximum - median for median, maximum in zip(medians, maximums, strict=True)]
-        offsets = [position - 0.4 + bar_width * (index + 0.5) for position in range(len(corpora))]
+        offsets = [position - 0.4 + slot_width * (index + 0.5) for position in range(len(corpora))]
         axes.bar(
             offsets,
             medians,
@@ -114,8 +116,7 @@ def grouped_bars(
             error_kw={"ecolor": TEXT_COLOR, "elinewidth": 1, "capsize": 3},
             label=name,
             color=SERIES_COLORS[index],
-            edgecolor=SURFACE_COLOR,
-            linewidth=2,
+            linewidth=0,
             zorder=3,
         )
     axes.set_xticks(list(range(len(corpora))))
