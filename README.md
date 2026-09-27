@@ -12,6 +12,7 @@ changes one thing from the variant before it.
 | `outermap` | every cache is an `unordered_dense` segmented map from each n-gram to a `std::unordered_map` of its following tokens |
 | `innervector` | the following tokens of each n-gram are a vector of (token, count) pairs sorted by token |
 | `constmap` | the static cache is a verified constmap from each 2-gram to a span of (token, count) pairs sorted by token |
+| `precheck` | the drafting loop skips an n-gram size when even its most frequent following token cannot pass the thresholds |
 We build static caches from [WikiText-103](https://arxiv.org/abs/1609.07843)
 (2016) train and replay WikiText-103 test through `llama-lookup-stats`.
 The tokenizer is Qwen2.5 0.5B Instruct. Our results are in

@@ -10,6 +10,7 @@
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | outermap, constmap | outermap stores the ngram caches in an `unordered_dense` segmented map, and constmap is rebased onto the new outermap | outermap loads the static cache 1.41x to 1.65x faster than nocopy, holds it in 1.07x to 1.11x less memory, and drafts 1.02x to 1.13x faster. constmap loads the static cache 8.18x to 15.07x faster than outermap, holds it in 4.31x to 5.29x less memory, and drafts 0.81x to 0.87x as fast with a static cache. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | innervector, constmap | innervector stores the following tokens of each n-gram in a sorted vector on top of outermap, and constmap is rebased onto innervector | innervector drafts 2.26x faster than outermap without a static cache and 0.86x to 0.95x as fast with one, and holds the static cache in 2.42x to 2.87x less memory. constmap drafts 1.08x to 1.15x faster than innervector with a static cache, loads it 6.53x to 15.67x faster, and holds it in 1.87x to 2.20x less memory. |
 | 2026-09-26 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | innervector, constmap | innervector searches the sorted followers without branches, constmap shares that search, and the memory figures show the whole peak | innervector drafts 2.09x faster than outermap without a static cache and 1.19x to 1.25x faster with one, and peaks 1.04x to 1.97x lower. constmap drafts 1.06x to 1.20x faster than innervector with a static cache, loads it 6.32x to 16.12x faster, and peaks up to 1.30x lower. |
+| 2026-09-27 | Apple M4 Pro, 14 cores, 48 GiB, macOS 26.5.1 | constmap, precheck | precheck is Daniel Lemire's jadidbourbaki/llama.cpp#12 on top of constmap, and constmap is rerun in the same session | precheck drafts 1.94x faster than constmap without a static cache and 3.45x to 4.19x faster with one. Load time and peak memory stay the same. |
 
 The change of context size invalidates the first run, and `results/` holds
 the second run.
@@ -95,3 +96,17 @@ innervector on every corpus. We ran innervector at `e597b1b` and constmap
 at `bdd4ea7`, then pinned them to `f46522c` and `b90b281`, which differ
 from the measured commits only by the comment above the search in
 `common/ngram-cache.h`.
+
+The ninth run adds precheck, the pull request jadidbourbaki/llama.cpp#12
+by Daniel Lemire at `f764f32`, on top of constmap at `b90b281`. Before
+precheck scores the candidates of an n-gram size, it checks the total
+count and the largest count of the size's following tokens. The token
+that the scoring picks has at most the largest count, so a size that
+fails the check with its largest count also fails after scoring. precheck
+therefore skips the search of the static cache for every candidate of
+that size. precheck drafts and accepts exactly the same tokens as
+constmap on every corpus, and every configuration drafted the same
+number of tokens in all 3 runs. We reran constmap in the same session,
+so the constmap rows of `results/` now hold the runs of this session.
+The fastest and slowest runs of the two variants do not overlap on any
+corpus.
